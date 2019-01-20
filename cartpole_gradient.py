@@ -38,7 +38,7 @@ def main():
         plt.ylabel('Duration')
         plt.plot(durations_t.numpy())
         # Take 100 episode averages and plot them too
-        if len(durations_t) >= 100:
+        if len(durations_t) >= 0:
             means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
             means = torch.cat((torch.zeros(99), means))
             plt.plot(means.numpy())
@@ -65,9 +65,9 @@ def main():
         state = torch.from_numpy(state).float()
         state = Variable(state)
 
-        # While look with counter
+        # While loop with counter
         for t in count():
-            #env.render()
+            env.render()
 
             # Sample & perform action from nn output gradient
             probs = policy_net(state)
