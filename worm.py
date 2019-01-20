@@ -3,7 +3,7 @@ import mujoco_py
 import torch
 import numpy as np
 
-env = gym.make('HumanoidStandup-v2')
+env = gym.make('Swimmer-v2')
 
 action_size = len(env.action_space.high)
 observation_size = len(env.observation_space.high)
@@ -38,7 +38,7 @@ def run_episode(env, parameters):
             
             if np.abs(output) > testmax: testmax = np.abs(output)
             
-        #print(action)
+        print(action)
 
             
         observation, reward, done, info = env.step(action)
