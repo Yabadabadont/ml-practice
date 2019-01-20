@@ -1,6 +1,6 @@
 import gym
 import mujoco_py
-import torch as pt
+import torch
 from numpy import array
 import numpy as np
 import logging
@@ -9,23 +9,17 @@ import sys
 import math
 import random
 
-# Setup
 np.set_printoptions(threshold=np.nan)
-do_render = True
-frames = 200
-if len(sys.argv)==3:
-    print("this happened")
-    do_render = sys.argv[2].startswith("r")
-    frames = int(sys.argv[1])
-else:
-    print("usage: python *.py frames (r)ender")
-    sys.exit(1)
-pt.set_default_tensor_type('torch.cuda.FloatTensor')
-cuda = pt.device('cuda')
 
-# Initialize
-model = 'Swimmer-v2'
+do_render = True
+if len(sys.argv)==3:
+    do_render = False
+
+# initialize
+model = 'HumanoidStandup-v2'
 env = gym.make(model)
+
+# useful variables
 action_size = len(env.action_space.high)
 observation_size = len(env.observation_space.high)
 
@@ -43,58 +37,39 @@ def read_best():
         return [eval(fdata[0]), float(fdata[1])]
     except:
         return [0,0]
-
-# Normalize a float between -1 and 1
-def sigmoid(x):
-    return (1 / (1 + math.exp(-x)))*2-1
     
 # Run one episode and return the reward.
-def run_episode(env, parameters, frames):
+def run_episode(env, parameters, frames=100):
+    total_reward = 0
     observation = env.reset()
-
-    sum_reward = 0
-    max_reward = 0
-    
-    for z in range(frames):
+    for _ in range(frames):
         if do_render: env.render()
         
-        # Calculate action
-        obs = pt.tensor([observation]).cuda()
-        pars = pt.transpose(pt.tensor(parameters).cuda(), 0, 1)
-
-        action = [sigmoid(x) for x in pt.mm(obs, pars).cuda()[0]]    
-
-        # Perform action
+        # Calculate the action based on the weights.
+        action = [0 for i in range(action_size)]
+        for i in range(action_size):
+            output = np.matmul(parameters[i], observation)/8
+            action[i] = output
+             
         observation, reward, done, info = env.step(action)
 
-        #print(reward)
-        #input()
-        
-        # Update values
-        if reward > max_reward: max_reward = reward
-        sum_reward += reward
+        if reward > total_reward: total_reward = reward
 
         #if done:
+        
         #    print("DONE")
         #    break
-
-
-    # Return distance
-    return abs(sum_reward)
         
-    # Return distance/time == speed
-    #return abs(sum_reward)/frames
-
-
+    return total_reward
 
 def get_random_params():
     return np.random.rand(action_size,observation_size)*2-1
 
+new_params = input("New params? y/n ").lower().startswith("y")
 
-new_params = input("New params? ").lower().startswith("y")
 
-
-noise_scaling = 0.01
+base_scaling = 0.1
+noise_scaling = 0
 
 total_record = read_best()[1]
 
@@ -104,31 +79,43 @@ if not new_params:
     best = read_best()
     parameters = best[0]
     bestreward = best[1]
-    
+
+frame_count = 200
+if len(sys.argv) >= 2:
+    frame_count = int(sys.argv[1])
+
 ep = 0
+scaling = 1
 while True:
     ep += 1
+
+    #curious = random.random() < noise_scaling
+
+    #if curious:
+    #    print("hmmm")
     
-    new_params = parameters + get_random_params()*noise_scaling
+    new_params = [parameters + get_random_params()*noise_scaling,get_random_params()][0]#curious]
 
     series_reward = 0
     n = 1
     for x in range(n):
-        reward = np.abs(run_episode(env,parameters,frames))
+        reward = np.abs(run_episode(env,parameters,frame_count))
         series_reward += reward
     series_reward /= n
     reward = series_reward
         
-    #print("{}: {}, scaling {}".format(ep, reward, noise_scaling))
-
-    if ep%100==0:
-        print(ep)
+    print("{}: {}, scaling {}".format(ep, reward, noise_scaling))
     
     if reward > bestreward:
+        #scaling = 1
         print('new best: ',reward)
         if reward > total_record:
             record_best(reward, new_params)
         bestreward = reward
         parameters = new_params
     else:
-        pass
+        #scaling += 1
+        noise_scaling = 0.1#1/10*math.log(scaling)
+
+        #if noise_scaling > 0.5:
+        #    scaling = 0
