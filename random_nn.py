@@ -19,7 +19,9 @@ class PolicyNet(nn.Module):
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
+        # x = F.relu(self.fc3(x)) << I had this instead of the following
+        #                            line and it nullified the entire setup
+        x = self.fc3(x) # << correct
         x = F.sigmoid(x)
         return x
 
