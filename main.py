@@ -24,7 +24,7 @@ pt.set_default_tensor_type('torch.cuda.FloatTensor')
 cuda = pt.device('cuda')
 
 # Initialize
-model = 'Swimmer-v2'
+model = 'Ant-v2'
 env = gym.make(model)
 action_size = len(env.action_space.high)
 observation_size = len(env.observation_space.high)
@@ -45,8 +45,11 @@ def read_best():
         return [0,0]
 
 # Normalize a float between -1 and 1
-def sigmoid(x):
-    return (1 / (1 + math.exp(-x)))*2-1
+def sigmoid(gamma):
+  if gamma < 0:
+    return 1 - 1/(1 + math.exp(gamma))*2-1
+  else:
+    return 1/(1 + math.exp(-gamma))*2-1
     
 # Run one episode and return the reward.
 def run_episode(env, parameters, frames):
@@ -80,7 +83,7 @@ def run_episode(env, parameters, frames):
 
 
     # Return distance
-    return abs(sum_reward)
+    return sum_reward
         
     # Return distance/time == speed
     #return abs(sum_reward)/frames
@@ -123,12 +126,15 @@ while True:
 
     if ep%100==0:
         print(ep)
+        noise_scaling = 0.1
     
     if reward > bestreward:
+        noise_scaling = 0.1
         print('new best: ',reward)
         if reward > total_record:
             record_best(reward, new_params)
         bestreward = reward
         parameters = new_params
     else:
+        noise_scaling += 0.1
         pass
