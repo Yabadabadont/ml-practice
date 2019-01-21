@@ -8,13 +8,14 @@ import gym
 import random
 import numpy as np
 from itertools import count
+import mujoco_py
 
 class PolicyNet(nn.Module):
     def __init__(self):
         super(PolicyNet, self).__init__()
-        self.fc1 = nn.Linear(4, 24) # 4 in, 24 hidden, 36 hidden, 1 out
+        self.fc1 = nn.Linear(376, 24)
         self.fc2 = nn.Linear(24, 36)
-        self.fc3 = nn.Linear(36, 1)
+        self.fc3 = nn.Linear(36, 17)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -22,7 +23,7 @@ class PolicyNet(nn.Module):
         # x = F.relu(self.fc3(x)) << I had this instead of the following
         #                            line and it nullified the entire setup
         x = self.fc3(x) # << correct
-        x = F.sigmoid(x)
+        #x = F.sigmoid(x)
         return x
 
 def main():
@@ -38,14 +39,14 @@ def main():
         plt.ylabel('Duration')
         plt.plot(durations_t.numpy())
         # Take 100 episode averages and plot them too
-        if len(durations_t) >= 0:
+        if len(durations_t) >= 100:
             means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
             means = torch.cat((torch.zeros(99), means))
             plt.plot(means.numpy())
         plt.pause(0.001)
 
     
-    env = gym.make('CartPole-v1')
+    env = gym.make('Humanoid-v2')
     policy_net = PolicyNet()
     num_episode = 5000
     
@@ -59,7 +60,7 @@ def main():
     reward_pool = []
     steps = 0
     
-    for e in range(num_episode):
+    for e in count():#range(num_episode):
         
         state = env.reset()
         state = torch.from_numpy(state).float()
@@ -70,18 +71,21 @@ def main():
             env.render()
 
             # Sample & perform action from nn output gradient
-            probs = policy_net(state)
-            m = Bernoulli(probs)
-            action = m.sample()
-            action = int(action.item())
-            next_state, reward, done, _ = env.step(action)
+            #probs = policy_net(state)
+            #m = Bernoulli(probs)
+            #action = m.sample()
+            #action = int(action.item())
+
+            action = [float(i) for i in policy_net(state)]
+            
+            next_state, reward, done, _ = env.step(action)            
 
             if done:
                 reward = 0
             
             # Record batch data
             state_pool.append(state)
-            action_pool.append(float(action))
+            action_pool.append(action)
             reward_pool.append(reward)
             
             state = next_state
@@ -124,7 +128,9 @@ def main():
                 probs = policy_net(state)
                 m = Bernoulli(probs)
                 loss = -m.log_prob(action) * reward
-                loss.backward()
+
+              
+                (loss.sum()/len(loss)).backward()
 
             optimizer.step()
 
