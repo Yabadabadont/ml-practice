@@ -22,7 +22,7 @@ class PolicyNet(nn.Module):
         # x = F.relu(self.fc3(x)) << I had this instead of the following
         #                            line and it nullified the entire setup
         x = self.fc3(x) # << correct
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         return x
 
 def main():
@@ -38,7 +38,7 @@ def main():
         plt.ylabel('Duration')
         plt.plot(durations_t.numpy())
         # Take 100 episode averages and plot them too
-        if len(durations_t) >= 0:
+        if len(durations_t) >= 100:
             means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
             means = torch.cat((torch.zeros(99), means))
             plt.plot(means.numpy())
@@ -67,7 +67,7 @@ def main():
 
         # While loop with counter
         for t in count():
-            env.render()
+            #env.render()
 
             # Sample & perform action from nn output gradient
             probs = policy_net(state)
