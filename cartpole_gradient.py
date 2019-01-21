@@ -13,9 +13,9 @@ import mujoco_py
 class PolicyNet(nn.Module):
     def __init__(self):
         super(PolicyNet, self).__init__()
-        self.fc1 = nn.Linear(376, 24)
+        self.fc1 = nn.Linear(11, 24)
         self.fc2 = nn.Linear(24, 36)
-        self.fc3 = nn.Linear(36, 17)
+        self.fc3 = nn.Linear(36, 3)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -36,7 +36,7 @@ def main():
         durations_t = torch.FloatTensor(episode_durations)
         plt.title('Training...')
         plt.xlabel('Episode')
-        plt.ylabel('Duration')
+        plt.ylabel('Distance')
         plt.plot(durations_t.numpy())
         # Take 100 episode averages and plot them too
         if len(durations_t) >= 100:
@@ -46,7 +46,7 @@ def main():
         plt.pause(0.001)
 
     
-    env = gym.make('Humanoid-v2')
+    env = gym.make('Hopper-v2')
     policy_net = PolicyNet()
     num_episode = 5000
     
@@ -68,7 +68,7 @@ def main():
 
         # While loop with counter
         for t in count():
-            env.render()
+            #env.render()
 
             # Sample & perform action from nn output gradient
             #probs = policy_net(state)
@@ -111,6 +111,7 @@ def main():
                     running_add = running_add * gamma + reward_pool[i]
                     reward_pool[i] = running_add
 
+                    
             # Normalize reward
             reward_mean = np.mean(reward_pool)
             reward_std = np.std(reward_pool)
