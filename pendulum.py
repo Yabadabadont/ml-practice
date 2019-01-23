@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Bernoulli
+from torch.distributions import Categorical
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
 import gym
@@ -12,9 +12,9 @@ from itertools import count
 class PolicyNet(nn.Module):
     def __init__(self):
         super(PolicyNet, self).__init__()
-        self.fc1 = nn.Linear(4, 24) # 4 in, 24 hidden, 36 hidden, 1 out
+        self.fc1 = nn.Linear(6, 24) # 4 in, 24 hidden, 36 hidden, 1 out
         self.fc2 = nn.Linear(24, 36)
-        self.fc3 = nn.Linear(36, 1)
+        self.fc3 = nn.Linear(36, 3)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -45,7 +45,7 @@ def main():
         plt.pause(0.001)
 
     
-    env = gym.make('CartPole-v1')
+    env = gym.make('Acrobot-v1')
     policy_net = PolicyNet()
     num_episode = 5000
     
@@ -67,15 +67,27 @@ def main():
 
         # While loop with counter
         for t in count():
-            #env.render()
+            env.render()
 
             # Sample & perform action from nn output gradient
             probs = policy_net(state)
-            m = Bernoulli(probs)
+            m = Categorical(probs)
             action = m.sample()
             action = int(action.item())
+
+            #action = float(probs.item())
+
+            #action = env.action_space.sample()
+
+            print(action)
+            
             next_state, reward, done, _ = env.step(action)
 
+            print(reward)
+
+            if reward != -1.0:
+                input("hey")
+            
             if done:
                 reward = 0
             
@@ -91,8 +103,8 @@ def main():
             steps += 1
 
             if done:
-                episode_durations.append(t+1)
-                plot_durations()
+                episode_durations.append(reward)
+                #plot_durations()
                 break
 
         # Update policy
@@ -122,7 +134,7 @@ def main():
                 reward = reward_pool[i]
 
                 probs = policy_net(state)
-                m = Bernoulli(probs)
+                m = Categorical(probs)
                 loss = -m.log_prob(action) * reward
                 loss.backward()
 
