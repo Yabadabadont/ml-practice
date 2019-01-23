@@ -22,7 +22,7 @@ class PolicyNet(nn.Module):
         # x = F.relu(self.fc3(x)) << I had this instead of the following
         #                            line and it nullified the entire setup
         x = self.fc3(x) # << correct
-        x = torch.sigmoid(x)
+        x = F.softmax(x, dim=-1)
         return x
 
 def main():
@@ -49,11 +49,12 @@ def main():
     policy_net = PolicyNet()
     num_episode = 5000
     
-    batch_size = 5
+    batch_size = 2
     learning_rate = 0.01
     gamma = 0.99
     optimizer = torch.optim.RMSprop(policy_net.parameters(), lr=learning_rate)
 
+    episode_lengths = []
     state_pool = []
     action_pool = []
     reward_pool = []
@@ -67,7 +68,7 @@ def main():
 
         # While loop with counter
         for t in count():
-            env.render()
+            #env.render()
 
             # Sample & perform action from nn output gradient
             probs = policy_net(state)
@@ -79,18 +80,17 @@ def main():
 
             #action = env.action_space.sample()
 
-            print(action)
+            #print(action)
             
             next_state, reward, done, _ = env.step(action)
 
-            print(reward)
+            #print(reward)
 
-            if reward != -1.0:
-                input("hey")
-            
-            if done:
+            if reward == 0:
+                reward = 1
+            else:
                 reward = 0
-            
+
             # Record batch data
             state_pool.append(state)
             action_pool.append(float(action))
@@ -103,37 +103,57 @@ def main():
             steps += 1
 
             if done:
-                episode_durations.append(reward)
-                #plot_durations()
+                
+                episode_durations.append(t+1)
+                plot_durations()
                 break
 
         # Update policy
         if e > 0 and e % batch_size == 0:
 
             # Discount reward
+
+            n = 0
+            z = episode_durations[e]
+            
             running_add = 0
             for i in reversed(range(steps)):
-                if reward_pool[i] == 0: # between episodes
+                #print(i, z, reward_pool[i])
+                if i == steps-z: # between episodes
+                    n += 1
+                    z += episode_durations[e-n]
                     running_add = 0
                 else: # update reward pool with discount
                     running_add = running_add * gamma + reward_pool[i]
                     reward_pool[i] = running_add
-
+                    print(running_add)
+                #input()
+                    
             # Normalize reward
             reward_mean = np.mean(reward_pool)
             reward_std = np.std(reward_pool)
             for i in range(steps):
                 reward_pool[i] = (reward_pool[i] - reward_mean) / reward_std
+                #print(reward_pool[i])
+            #input()
 
             # Gradient Descent
             optimizer.zero_grad()
 
             for i in range(steps):
                 state = state_pool[i]
+
+               
+               
+
+                
                 action = Variable(torch.FloatTensor([action_pool[i]]))
                 reward = reward_pool[i]
 
                 probs = policy_net(state)
+
+                print(probs)
+                
                 m = Categorical(probs)
                 loss = -m.log_prob(action) * reward
                 loss.backward()
@@ -143,6 +163,7 @@ def main():
             state_pool = []
             action_pool = []
             reward_pool = []
+
             steps = 0
             
 if __name__ == '__main__':
