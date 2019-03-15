@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import gym
 import random
 import numpy as np
+import pybox2d
 from itertools import count
 
 class PolicyNet(nn.Module):
@@ -45,7 +46,7 @@ def main():
         plt.pause(0.001)
 
     
-    env = gym.make('Acrobot-v1')
+    env = gym.make('BipedalWalker-v2')
     policy_net = PolicyNet()
     num_episode = 5000
     
@@ -68,7 +69,7 @@ def main():
 
         # While loop with counter
         for t in count():
-            #env.render()
+            env.render()
 
             # Sample & perform action from nn output gradient
             probs = policy_net(state)
