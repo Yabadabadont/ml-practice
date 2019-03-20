@@ -191,17 +191,13 @@ def train(iterations, batch_size, sample_interval):
         # Generator loss
         g_loss = combined.train_on_batch(z, real)
 
-        if iteration % sample_interval == 0:
-            
-            # Output training progress
-            print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % 
-                         (iteration, d_loss[0], 100*d_loss[1], g_loss))
-            
-            # Save losses and accuracies so they can be plotted after training
-            losses.append((d_loss[0], g_loss))
-            accuracies.append(100*d_loss[1])
+        print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (iteration, d_loss[0], 100*d_loss[1], g_loss))
 
-            # Output generated image samples 
+        losses.append((d_loss[0], g_loss))
+        accuracies.append(100*d_loss[1])
+        
+        if iteration % sample_interval == 0:
+
             sample_images(iteration)
 
 def sample_images(iteration, image_grid_rows=4, image_grid_columns=4):
@@ -240,7 +236,7 @@ def sample_images(iteration, image_grid_rows=4, image_grid_columns=4):
 
     
 iterations = 20000
-batch_size = 128
+batch_size = 32
 sample_interval = 1000
 
 # Train the GAN for the specified number of iterations
