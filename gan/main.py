@@ -1,164 +1,247 @@
-# -*- coding: utf-8 -*-
-""" Simple implementation of Generative Adversarial Neural Network """
-import os
-import numpy as np
 
-from IPython.core.debugger import Tracer
-
-#from keras.datasets import mnist
-from keras.datasets import mnist
-from keras.datasets import cifar10
+from keras.datasets import mnist, cifar10
 from keras.layers import Input, Dense, Reshape, Flatten, Dropout
-from keras.layers import BatchNormalization
+from keras.layers import BatchNormalization, Activation, ZeroPadding2D
 from keras.layers.advanced_activations import LeakyReLU
-from keras.models import Sequential
+from keras.layers.convolutional import Conv2D, Conv2DTranspose
+from keras.models import Sequential, Model
 from keras.optimizers import Adam
 
 import matplotlib.pyplot as plt
-plt.switch_backend('agg')   # allows code to run without a system DISPLAY
+import numpy as np
+import os
+
+img_rows = 32
+img_cols = 32
+channels = 3
+img_shape = (img_rows, img_cols, channels)
+
+z_dim = 100
+
+plt.switch_backend('agg')
+
+def generator(img_shape, z_dim):
+
+    model = Sequential()
+
+    # Reshape input into 7x7x256 tensor via a fully connected layer
+    model.add(Dense(256 * 8 * 8, input_dim=z_dim))
+    model.add(Reshape((8, 8, 256)))
+
+    # Transposed convolution layer, from 7x7x256 into 14x14x128 tensor
+    model.add(Conv2DTranspose(
+                128, kernel_size=3, strides=2, padding='same'))
+
+    # Batch normalization
+    model.add(BatchNormalization())
+
+    # Leaky ReLU
+    model.add(LeakyReLU(alpha=0.01))
+    
+    # Transposed convolution layer, from 14x14x128 to 14x14x64 tensor
+    model.add(Conv2DTranspose(
+                64, kernel_size=3, strides=1, padding='same'))
+
+    # Batch normalization
+    model.add(BatchNormalization())
+
+    # Leaky ReLU
+    model.add(LeakyReLU(alpha=0.01))
+    
+    # Transposed convolution layer, from 14x14x64 to 28x28x1 tensor
+    model.add(Conv2DTranspose(
+                3, kernel_size=3, strides=2, padding='same'))
+
+    # Tanh activation
+    model.add(Activation('tanh'))
+
+    z = Input(shape=(z_dim,))
+    img = model(z)
+
+    return Model(z, img)
 
 
-class GAN(object):
-    """ Generative Adversarial Network class """
-    def __init__(self, width=32, height=32, channels=3):
+def discriminator(img_shape):
 
-        self.width = width
-        self.height = height
-        self.channels = channels
+    model = Sequential()
 
-        self.shape = (self.width, self.height, self.channels)
+    # Convolutional layer, from 28x28x1 into 14x14x32 tensor
+    model.add(Conv2D(32, kernel_size=3, strides=2, 
+                             input_shape=img_shape, padding='same'))
 
-        self.optimizer = Adam(lr=0.0002, beta_1=0.5, decay=8e-8)
+    # Leaky ReLU
+    model.add(LeakyReLU(alpha=0.01))
 
-        self.G = self.__generator()
-        self.G.compile(loss='binary_crossentropy', optimizer=self.optimizer)
+    # Convolutional layer, from 14x14x32 into 7x7x64 tensor
+    model.add(Conv2D(64, kernel_size=3, strides=2, 
+                             input_shape=img_shape, padding='same'))
+    
+    # Batch normalization
+    model.add(BatchNormalization())
+    
+    # Leaky ReLU
+    model.add(LeakyReLU(alpha=0.01))
+    
+    # Convolutional layer, from 7x7x64 tensor into 3x3x128 tensor
+    model.add(Conv2D(128, kernel_size=3, strides=2, 
+                             input_shape=img_shape, padding='same'))
+    
+    # Batch normalization
+    model.add(BatchNormalization())
+    
+    # Leaky ReLU
+    model.add(LeakyReLU(alpha=0.01))
 
-        self.D = self.__discriminator()
-        self.D.compile(loss='binary_crossentropy', optimizer=self.optimizer, metrics=['accuracy'])
+    # Flatten the tensor and apply sigmoid activation function
+    model.add(Flatten())
+    model.add(Dense(1, activation='sigmoid'))
 
-        self.stacked_generator_discriminator = self.__stacked_generator_discriminator()
+    img = Input(shape=img_shape)
+    prediction = model(img)
 
-        self.stacked_generator_discriminator.compile(loss='binary_crossentropy', optimizer=self.optimizer)
-
-
-
-    def __generator(self, z_dim=100):
-        """ Declare generator """
-
-        model = Sequential()
-
-        # Hidden layer
-        model.add(Dense(128, input_dim=z_dim))
-
-        # Leaku ReLU
-        model.add(LeakyReLU(alpha=0.01))
-
-        # Output layer with tanh activation
-        model.add(Dense(self.height*self.width*self.channels, activation="tanh"))
-        model.add(Reshape(self.shape))
-
-        return model
-
-    def __discriminator(self):
-        """ Declare discriminator """
-
-        model = Sequential()
-
-        model.add(Flatten(input_shape=self.shape))
-
-        # Hidden layer
-        model.add(Dense(128))
-
-        # Leaku ReLU          
-        model.add(LeakyReLU(alpha=0.01))
-        # Output layer with sigmoid activation
-        model.add(Dense(1, activation='sigmoid'))
-        
-        return model
-
-    def __stacked_generator_discriminator(self):
-
-        self.D.trainable = False
-
-        model = Sequential()
-        model.add(self.G)
-        model.add(self.D)
-
-        return model
-
-    def train(self, X_train, epochs=200000, batch = 32, save_interval = 1000):
-
-        for cnt in range(epochs):
-
-            ## train discriminator
-            random_index = np.random.randint(0, len(X_train) - np.int64(batch/2))
-            legit_images = X_train[random_index : random_index + np.int64(batch/2)].reshape(np.int64(batch/2), self.width, self.height, self.channels)
-
-            gen_noise = np.random.normal(0, 1, (np.int64(batch/2), 100))
-            syntetic_images = self.G.predict(gen_noise)
-
-            x_combined_batch = np.concatenate((legit_images, syntetic_images))
-            y_combined_batch = np.concatenate((np.ones((np.int64(batch/2), 1)), np.zeros((np.int64(batch/2), 1))))
-
-            d_loss = self.D.train_on_batch(x_combined_batch, y_combined_batch)
+    return Model(img, prediction)
 
 
-            # train generator
-
-            noise = np.random.normal(0, 1, (batch, 100))
-            y_mislabled = np.ones((batch, 1))
-
-            g_loss = self.stacked_generator_discriminator.train_on_batch(noise, y_mislabled)
-
-            print ('epoch: %d, [Discriminator :: d_loss: %f], [ Generator :: loss: %f]' % (cnt, d_loss[0], g_loss))
-
-            if cnt % save_interval == 0:
-                self.plot_images(save2file=True, step=cnt)
 
 
-    def plot_images(self, save2file=False, samples=16, step=0):
-        ''' Plot and generated images '''
-        if not os.path.exists("./images"):
-            os.makedirs("./images")
-        filename = "./images/mnist_%d.png" % step
-        noise = np.random.normal(0, 1, (samples, 100))
+# Build and compile the Discriminator
+discriminator = discriminator(img_shape)
+discriminator.compile(loss='binary_crossentropy', 
+                      optimizer=Adam(), metrics=['accuracy'])
 
-        images = self.G.predict(noise)
+# Build the Generator
+generator = generator(img_shape, z_dim)
 
-        plt.figure(figsize=(10, 10))
+# Generated image to be used as input
+z = Input(shape=(100,))
+img = generator(z)
 
-        for i in range(images.shape[0]):
-            plt.subplot(4, 4, i+1)
-            image = images[i, :, :, :]
-            try:
-                image = np.reshape(image, [self.height, self.width, self.channels])
-            except:
-                image = np.reshape(image, [self.height, self.width])
-            plt.imshow(image, cmap="gray")
-            plt.axis('off')
-        plt.tight_layout()
+# Keep Discriminator’s parameters constant during Generator training
+discriminator.trainable = False
 
-        if save2file:
-            plt.savefig(filename)
-            plt.close('all')
-        else:
-            plt.show()
+# The Discriminator’s prediction
+prediction = discriminator(img)
+
+# Combined GAN model to train the Generator
+combined = Model(z, prediction)
+combined.compile(loss='binary_crossentropy', optimizer=Adam())
 
 
-if __name__ == '__main__':
-    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
-    xl = x_train
-    yl = y_train
-    x_train = []
-    for x, y in zip(xl, yl):
-        if y == 3:
-            x_train.append(x)
 
-    x_train = np.array(x_train)
-            
+losses = []
+accuracies = []
+
+def train(iterations, batch_size, sample_interval):
+    
+    # Load the dataset
+    (X_train, _), (_, _) = cifar10.load_data()
+
+    #print(X_train.shape)
+    
     # Rescale -1 to 1
-    x_train = (x_train.astype(np.float32) - 127.5) / 127.5
-    x_train = np.expand_dims(x_train, axis=3)
+    X_train = X_train / 127.5 - 1.
+    #X_train = np.expand_dims(X_train, axis=3)
 
-    gan = GAN(32, 32, 3)
-    gan.train(x_train)
+
+    #print(X_train.shape)
+
+    #input()
+
+    # Labels for real and fake examples
+    real = np.ones((batch_size, 1))
+    fake = np.zeros((batch_size, 1))
+
+    for iteration in range(iterations):
+        
+        # -------------------------
+        #  Train the Discriminator
+        # -------------------------
+
+        #print(X_train.shape)
+        
+        # Select a random batch of real images
+        idx = np.random.randint(0, X_train.shape[0], batch_size)
+
+        #print(idx)
+        imgs = X_train[idx]
+
+        #print(imgs.shape)
+        
+        # Generate a batch of fake images
+        z = np.random.normal(0, 1, (batch_size, 100))
+        gen_imgs = generator.predict(z)
+
+        #print(z.shape)
+
+        #input()
+        
+        # Discriminator loss
+        d_loss_real = discriminator.train_on_batch(imgs, real)
+        d_loss_fake = discriminator.train_on_batch(gen_imgs, fake)
+        d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+
+        # ---------------------
+        #  Train the Generator
+        # ---------------------
+
+        # Generate a batch of fake images
+        z = np.random.normal(0, 1, (batch_size, 100))
+        gen_imgs = generator.predict(z)
+
+        # Generator loss
+        g_loss = combined.train_on_batch(z, real)
+
+        if iteration % sample_interval == 0:
+            
+            # Output training progress
+            print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % 
+                         (iteration, d_loss[0], 100*d_loss[1], g_loss))
+            
+            # Save losses and accuracies so they can be plotted after training
+            losses.append((d_loss[0], g_loss))
+            accuracies.append(100*d_loss[1])
+
+            # Output generated image samples 
+            sample_images(iteration)
+
+def sample_images(iteration, image_grid_rows=4, image_grid_columns=4):
+
+    plt.figure(figsize=(10,10))
+    
+    # Sample random noise
+    z = np.random.normal(0, 1, 
+              (image_grid_rows * image_grid_columns, z_dim))
+
+    # Generate images from random noise
+    gen_imgs = generator.predict(z)
+
+    # Rescale images to 0-1
+    gen_imgs = 0.5 * gen_imgs + 0.5
+ 
+    # Set image grid
+    for i in range(gen_imgs.shape[0]):
+        plt.subplot(4, 4, i+1)
+        image = gen_imgs[i, :, :, :]
+
+        try:
+            image = np.reshape(image, [img_cols, img_rows, channels])
+        except:
+            image = np.reshape(image, [img_cols, img_rows])
+
+        plt.imshow(image, cmap="gray")
+        plt.axis('off')
+    plt.tight_layout()
+            
+    if not os.path.exists("./images"):
+        os.makedirs("./images")
+    filename = "./images/mnist_%d.png" % iteration
+        
+    plt.savefig(filename)
+
+    
+iterations = 20000
+batch_size = 128
+sample_interval = 1000
+
+# Train the GAN for the specified number of iterations
+train(iterations, batch_size, sample_interval)
