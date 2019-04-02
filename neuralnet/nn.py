@@ -2,20 +2,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load data
-data = open("digits-training.data").readlines()
-x_train, y_train = [], []
-for datum in data:
-    split = [int(i) for i in datum.strip().split()]
-    x_train.append(np.array(split[:-1]))
-    y_train.append(np.array(split[-1]))
-    print(len(split))
-    print(len(x_train[0]))
-x_train, y_train = np.array(x_train), np.array(y_train)
 
-# One hot encode y_train
-_ = np.zeros((len(y_train), 10))
-_[np.arange(len(y_train)), y_train] = 1
-y_train = _
+def get_data(file):
+    data = open(file).readlines()
+    x_train, y_train = [], []
+    for datum in data:
+        split = [int(i) for i in datum.strip().split()]
+        x_train.append(np.array(split[:-1]))
+        y_train.append(np.array(split[-1]))
+        print(len(split))
+        print(len(x_train[0]))
+    x_train, y_train = np.array(x_train), np.array(y_train)
+
+    # One hot encode y_train
+    _ = np.zeros((len(y_train), 10))
+    _[np.arange(len(y_train)), y_train] = 1
+    y_train = _
+    
+    return x_train, y_train
+
+x_train, y_train = get_data("digits-training.data")
+    
 
 in_size = 64
 hid_size = 32
@@ -63,14 +70,12 @@ b4 = np.full((batch_size, hid_size), 0.1)
 b5 = np.full((batch_size, out_size), 0.1)
 
 print(x_train.shape)
-
+    
 for i in range(100000):
     randindex = np.random.randint(0, len(x_train)-batch_size)
     x = x_train[randindex:randindex+32, :]
     y = y_train[randindex:randindex+32, :]
 
-
-    
     a1 = x
     z2 = a1.dot(w1) + b1
     a2 = sigmoid(z2)
@@ -82,7 +87,6 @@ for i in range(100000):
     a5 = sigmoid(z5)
     z6 = a5.dot(w5) + b5
     z6 = sigmoid(z6)
-
     
     cost = np.sum((z6 - y)**2)/2
 
@@ -116,3 +120,40 @@ for i in range(100000):
         param -= learning_rate * gradient
 
     print(cost)
+
+# test it
+
+cost_total = 0
+total = 0
+correct = 0
+x_test, y_test = get_data("digits-test.data")
+for i in range(len(x_test)%32):
+    x = x_test[i*32:32*i+32, :]
+    y = y_test[i*32:32*i+32, :]
+
+    a1 = x
+    z2 = a1.dot(w1) + b1
+    a2 = sigmoid(z2)
+    z3 = a2.dot(w2) + b2
+    a3 = sigmoid(z3)
+    z4 = a3.dot(w3) + b3
+    a4 = sigmoid(z4)
+    z5 = a4.dot(w4) + b4
+    a5 = sigmoid(z5)
+    z6 = a5.dot(w5) + b5
+    z6 = sigmoid(z6)
+
+    for z_v, y_v in zip(z6, y):
+        prediction = np.argmax(z_v)
+        actual = np.argmax(y_v)
+        if prediction == actual:
+            correct += 1
+        total += 1
+        
+    cost = np.sum((z6 - y)**2)/2
+
+    cost_total += cost
+    print(cost)
+
+print(cost_total/len(x_test)%32)
+print(correct/total)
