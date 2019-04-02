@@ -1,8 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+import matplotlib
 
-# Load data
 
+matplotlib.use('Agg')
+plt.gray()
+
+# Save image for viewing
+def save_image(vec, name):
+    vec = np.reshape(vec, (8, 8))
+    plt.imshow(vec)
+    plt.savefig(name, cmap='gray')
+    
+# Load data from file
 def get_data(file):
     data = open(file).readlines()
     x_train, y_train = [], []
@@ -10,8 +21,6 @@ def get_data(file):
         split = [int(i) for i in datum.strip().split()]
         x_train.append(np.array(split[:-1]))
         y_train.append(np.array(split[-1]))
-        print(len(split))
-        print(len(x_train[0]))
     x_train, y_train = np.array(x_train), np.array(y_train)
 
     # One hot encode y_train
@@ -22,21 +31,12 @@ def get_data(file):
     return x_train, y_train
 
 x_train, y_train = get_data("digits-training.data")
-    
 
 in_size = 64
-hid_size = 32
+hid_size = 64
 out_size = 10
-
-#in_size = 1
-#hid_size = 10
-#out_size = 1
-
-# Training data
-#np.random.seed(1)
-#x_train = np.linspace(-1, 1, 200)[:, None]       # [batch, 1]
-#y_train = x_train ** 2                                  # [batch, 1]
 learning_rate = 0.001
+batch_size = 32
 
 # Helpers
 def sigmoid(x):
@@ -51,16 +51,12 @@ def derivative_sigmoid(x):
 w1 = np.random.uniform(-0.1, 0.1, (in_size, hid_size))
 # Weights for layer 2 (hidden layer)
 w2 = np.random.uniform(-0.1, 0.1, (hid_size, hid_size))
-# Weights for layer 2 (hidden layer)
+# Weights for layer 3 (hidden layer)
 w3 = np.random.uniform(-0.1, 0.1, (hid_size, hid_size))
-# Weights for layer 2 (hidden layer)
+# Weights for layer 4 (hidden layer)
 w4 = np.random.uniform(-0.1, 0.1, (hid_size, hid_size))
-# Weights for layer 3 (output)
+# Weights for layer 5 (output)
 w5 = np.random.uniform(-0.1, 0.1, (hid_size, out_size))
-
-print(x_train.shape)
-
-batch_size = 32
 
 # Biases
 b1 = np.full((batch_size, hid_size), 0.1)
@@ -69,13 +65,12 @@ b3 = np.full((batch_size, hid_size), 0.1)
 b4 = np.full((batch_size, hid_size), 0.1)
 b5 = np.full((batch_size, out_size), 0.1)
 
-print(x_train.shape)
     
 for i in range(100000):
     randindex = np.random.randint(0, len(x_train)-batch_size)
     x = x_train[randindex:randindex+32, :]
     y = y_train[randindex:randindex+32, :]
-
+    
     a1 = x
     z2 = a1.dot(w1) + b1
     a2 = sigmoid(z2)
@@ -123,6 +118,10 @@ for i in range(100000):
 
 # test it
 
+wrong_sample = []
+wrong_label = []
+right_label = []
+
 cost_total = 0
 total = 0
 correct = 0
@@ -130,7 +129,7 @@ x_test, y_test = get_data("digits-test.data")
 for i in range(len(x_test)%32):
     x = x_test[i*32:32*i+32, :]
     y = y_test[i*32:32*i+32, :]
-
+    
     a1 = x
     z2 = a1.dot(w1) + b1
     a2 = sigmoid(z2)
@@ -143,11 +142,15 @@ for i in range(len(x_test)%32):
     z6 = a5.dot(w5) + b5
     z6 = sigmoid(z6)
 
-    for z_v, y_v in zip(z6, y):
+    for x_v, z_v, y_v in zip(x, z6, y):
         prediction = np.argmax(z_v)
         actual = np.argmax(y_v)
         if prediction == actual:
             correct += 1
+        else:
+            wrong_sample.append(x_v)
+            wrong_label.append(prediction)
+            right_label.append(actual)
         total += 1
         
     cost = np.sum((z6 - y)**2)/2
@@ -155,5 +158,10 @@ for i in range(len(x_test)%32):
     cost_total += cost
     print(cost)
 
+
+for sample, wl, rl in zip(wrong_sample, wrong_label, right_label):
+    save_image(sample, "{}classified_as{}.png".format(rl, wl))
+    
+    
 print(cost_total/len(x_test)%32)
 print(correct/total)
